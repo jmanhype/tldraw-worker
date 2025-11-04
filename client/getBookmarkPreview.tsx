@@ -5,7 +5,13 @@ import {
   getHashForString,
 } from "tldraw";
 
-// How does our server handle bookmark unfurling?
+/**
+ * Fetches bookmark preview metadata from the server for a given URL.
+ * Creates a bookmark asset with title, description, image, and favicon.
+ * Falls back to empty metadata if the unfurling fails.
+ * @param url - The URL to fetch preview metadata for
+ * @returns A TLBookmarkAsset with preview metadata
+ */
 export async function getBookmarkPreview({
   url,
 }: {

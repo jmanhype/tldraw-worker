@@ -1,7 +1,10 @@
 import { TLAssetStore, uniqueId } from "tldraw";
 import { SERVER_URL } from "./server-url";
 
-// How does our server handle assets like images and videos?
+/**
+ * Asset store implementation for multiplayer tldraw.
+ * Handles uploading assets (images/videos) to the worker and retrieving them.
+ */
 export const multiplayerAssetStore: TLAssetStore = {
   // to upload an asset, we...
   async upload(_asset, file) {

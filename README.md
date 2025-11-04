@@ -9,7 +9,7 @@ This is a production-ready backend for [tldraw sync](https://tldraw.dev/docs/syn
   Durable Object](https://developers.cloudflare.com/durable-objects/).
 - Whiteboards and any uploaded images/videos are stored in a [Cloudflare
   R2](https://developers.cloudflare.com/r2/) bucket.
-- Although unreliated to tldraw sync, this server also includes a component to fetch link previews
+- Although unrelated to tldraw sync, this server also includes a component to fetch link previews
   for URLs added to the canvas.
   This is a minimal setup of the same system that powers multiplayer collaboration for hundreds of
   thousands of rooms & users on www.tldraw.com. Because durable objects effectively create a mini
@@ -49,8 +49,8 @@ The backend worker is under [`worker`](./worker/), and is split across several f
   [`TLSocketRoom`](https://tldraw.dev/reference/sync-core/TLSocketRoom) over websockets, and
   periodically saves room data to R2.
 - **[`worker/assetUploads.ts`](./worker/assetUploads.ts):** uploads, downloads, and caching for
-  static assets like images and videos.
-- **[`worker/bookmarkUnfurling.ts`](./worker/bookmarkUnfurling.ts):** extract URL metadata for bookmark shapes.
+  static assets like images and videos. Bookmark URL metadata extraction is handled via the
+  [cloudflare-workers-unfurl](https://www.npmjs.com/package/cloudflare-workers-unfurl) package.
 
 The frontend client is under [`client`](./client):
 
@@ -68,7 +68,7 @@ To add support for custom shapes, see the [tldraw sync custom shapes docs](https
 ## Deployment
 
 To deploy this example, you'll need to create a cloudflare account and create an R2 bucket to store
-your data. Update `bucket_name = 'tldraw-content'` in [`wrangler.toml`](./wrangler.toml) with the
+your data. Update `bucket_name` in [`wrangler.jsonc`](./wrangler.jsonc) with the
 name of your new bucket.
 
 Run `npm run deploy` to deploy your app. This should give you a workers.dev URL, but you can

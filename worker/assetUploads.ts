@@ -1,12 +1,23 @@
 import { IRequest, error } from "itty-router";
 import { Environment } from "./types";
 
-// assets are stored in the bucket under the /uploads path
+/**
+ * Sanitizes an upload ID and returns the R2 object key for storing assets.
+ * Assets are stored in the bucket under the /uploads path with sanitized names.
+ * @param uploadId - The upload identifier to sanitize
+ * @returns The sanitized object name for R2 storage
+ */
 function getAssetObjectName(uploadId: string) {
   return `uploads/${uploadId.replace(/[^a-zA-Z0-9_-]+/g, "_")}`;
 }
 
-// when a user uploads an asset, we store it in the bucket. we only allow image and video assets.
+/**
+ * Handles asset upload requests. Validates content type and stores images/videos in R2.
+ * Only accepts image/* and video/* content types.
+ * @param request - The incoming upload request with asset data
+ * @param env - Cloudflare environment bindings (R2 bucket access)
+ * @returns Success response or error if validation fails
+ */
 export async function handleAssetUpload(request: IRequest, env: Environment) {
   const objectName = getAssetObjectName(request.params.uploadId);
 
@@ -26,7 +37,14 @@ export async function handleAssetUpload(request: IRequest, env: Environment) {
   return { ok: true };
 }
 
-// when a user downloads an asset, we retrieve it from the bucket. we also cache the response for performance.
+/**
+ * Handles asset download requests with caching. Retrieves assets from R2 and caches them
+ * on Cloudflare's edge network. Supports range requests for video streaming.
+ * @param request - The incoming download request
+ * @param env - Cloudflare environment bindings (R2 bucket access)
+ * @param ctx - Execution context for managing cache operations
+ * @returns The asset response with appropriate headers and caching
+ */
 export async function handleAssetDownload(
   request: IRequest,
   env: Environment,

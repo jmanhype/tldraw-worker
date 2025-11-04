@@ -41,7 +41,7 @@ export class TldrawDurableObject {
 
 	private readonly router = AutoRouter({
 		catch: (e) => {
-			console.log(e)
+			console.error('Error in TldrawDurableObject router:', e)
 			return error(e)
 		},
 	})
