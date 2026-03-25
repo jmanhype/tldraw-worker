@@ -1,102 +1,60 @@
-# tldraw sync server
+# tldraw-worker
 
-This is a production-ready backend for [tldraw sync](https://tldraw.dev/docs/sync). This is a fork of the original [repository](https://github.com/tldraw/tldraw-sync-cloudflare), but modified to build and deploy completely on to a single Cloudflare Workers project.
+Fork of [tldraw/tldraw-sync-cloudflare](https://github.com/tldraw/tldraw-sync-cloudflare), modified to deploy as a single Cloudflare Workers project.
 
-- This app uses [Cloudflare Workers](https://developers.cloudflare.com/workers/), and will need
-  to be deployed to your own Cloudflare account.
-- Each whiteboard is synced via
-  [WebSockets](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API) to a [Cloudflare
-  Durable Object](https://developers.cloudflare.com/durable-objects/).
-- Whiteboards and any uploaded images/videos are stored in a [Cloudflare
-  R2](https://developers.cloudflare.com/r2/) bucket.
-- Although unrelated to tldraw sync, this server also includes a component to fetch link previews
-  for URLs added to the canvas.
-  This is a minimal setup of the same system that powers multiplayer collaboration for hundreds of
-  thousands of rooms & users on www.tldraw.com. Because durable objects effectively create a mini
-  server instance for every single active room, we've never needed to worry about scale. Cloudflare
-  handles the tricky infrastructure work of ensuring there's only ever one instance of each room, and
-  making sure that every user gets connected to that instance. We've found that with this approach,
-  each room is able to handle about 30 simultaneous collaborators.
+## What It Does
 
-## Overview
+Provides a multiplayer whiteboard backend using tldraw sync. Each room runs in a Cloudflare Durable Object with WebSocket connections. Static assets (images, video) are stored in R2.
 
-[![architecture](./arch.png)](https://www.tldraw.com/ro/Yb_QHJFP9syPZq1YrV3YR?v=-255,-148,2025,1265&p=page)
+This is the same architecture that runs tldraw.com. Each Durable Object handles roughly 30 simultaneous collaborators per room.
 
-When a user opens a room, they connect via Workers to a durable object. Each durable object is like
-its own miniature server. There's only ever one for each room, and all the users of that room
-connect to it. When a user makes a change to the drawing, it's sent via a websocket connection to
-the durable object for that room. The durable object applies the change to its in-memory copy of the
-document, and broadcasts the change via websockets to all other connected clients. On a regular
-schedule, the durable object persists its contents to an R2 bucket. When the last client leaves the
-room, the durable object will shut down.
+## Architecture
 
-Static assets like images and videos are too big to be synced via websockets and a durable object.
-Instead, they're uploaded to workers which store them in the same R2 bucket as the rooms. When
-they're downloaded, they're cached on cloudflare's edge network to reduce costs and make serving
-them faster.
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| Frontend | React 19, Vite | Canvas UI via tldraw SDK |
+| Sync backend | Cloudflare Workers | WebSocket routing |
+| Room state | Durable Objects | 1 instance per active room |
+| Asset storage | Cloudflare R2 | Images, videos, room snapshots |
+| Link previews | cloudflare-workers-unfurl | Bookmark metadata extraction |
+
+When a room has no connected clients, the Durable Object shuts down. Room data persists in R2 between sessions.
+
+## Project Structure
+
+```
+worker/
+  worker.ts                  # Route definitions
+  TldrawDurableObject.ts     # Sync room (TLSocketRoom over WS)
+  assetUploads.ts            # R2 upload/download/caching
+client/
+  App.tsx                    # Main component, wires sync to <Tldraw />
+  multiplayerAssetStore.tsx  # Asset upload/retrieval
+  getBookmarkPreview.tsx     # Bookmark preview fetching
+```
+
+## Requirements
+
+- Node.js (see package.json for version)
+- Cloudflare account
+- R2 bucket (update `bucket_name` in `wrangler.jsonc`)
 
 ## Development
 
-To install dependencies, run `npm install`. To start a local development server, run `npm start`. This will
-start a [`vite`](https://vitejs.dev/) dev server for your application.
+```bash
+npm install
+npm start        # Vite dev server
+npm run deploy   # Build + deploy to Cloudflare Workers
+```
 
-The backend worker is under [`worker`](./worker/), and is split across several files:
+## Limitations
 
-- **[`worker/worker.ts`](./worker/worker.ts):** the main entrypoint to the worker, defining each
-  route available.
-- **[`worker/TldrawDurableObject.ts`](./worker/TldrawDurableObject.ts):** the sync durable object.
-  An instance of this is created for every active room. This exposes a
-  [`TLSocketRoom`](https://tldraw.dev/reference/sync-core/TLSocketRoom) over websockets, and
-  periodically saves room data to R2.
-- **[`worker/assetUploads.ts`](./worker/assetUploads.ts):** uploads, downloads, and caching for
-  static assets like images and videos. Bookmark URL metadata extraction is handled via the
-  [cloudflare-workers-unfurl](https://www.npmjs.com/package/cloudflare-workers-unfurl) package.
-
-The frontend client is under [`client`](./client):
-
-- **[`client/App.tsx`](./client/App.tsx):** the main client `<App />` component. This connects our
-  sync backend to the `<Tldraw />` component, wiring in assets and bookmark previews.
-- **[`client/multiplayerAssetStore.tsx`](./client/multiplayerAssetStore.tsx):** how does the client
-  upload and retrieve assets like images & videos from the worker?
-- **[`client/getBookmarkPreview.tsx`](./client/getBookmarkPreview.tsx):** how does the client fetch
-  bookmark previews from the worker?
-
-  ## Custom shapes
-
-To add support for custom shapes, see the [tldraw sync custom shapes docs](https://tldraw.dev/docs/sync#Custom-shapes--bindings).
-
-## Deployment
-
-To deploy this example, you'll need to create a cloudflare account and create an R2 bucket to store
-your data. Update `bucket_name` in [`wrangler.jsonc`](./wrangler.jsonc) with the
-name of your new bucket.
-
-Run `npm run deploy` to deploy your app. This should give you a workers.dev URL, but you can
-also [configure a custom
-domain](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
-
-When you visit your published client, it should sync your document across devices.
+- No authentication layer -- rooms are accessible to anyone with the URL
+- No server-side access control on asset uploads
+- ~30 collaborator limit per room is a soft ceiling, not a hard cap
 
 ## License
 
-This project is provided under the MIT license found [here](https://github.com/tldraw/tldraw-sync-cloudflare/blob/main/LICENSE.md). The tldraw SDK is provided under the [tldraw license](https://github.com/tldraw/tldraw/blob/main/LICENSE.md).
+MIT. The tldraw SDK itself is under the [tldraw license](https://github.com/tldraw/tldraw/blob/main/LICENSE.md).
 
-## Trademarks
-
-Copyright (c) 2024-present tldraw Inc. The tldraw name and logo are trademarks of tldraw. Please see our [trademark guidelines](https://github.com/tldraw/tldraw/blob/main/TRADEMARKS.md) for info on acceptable usage.
-
-## Distributions
-
-You can find tldraw on npm [here](https://www.npmjs.com/package/@tldraw/tldraw?activeTab=versions).
-
-## Contribution
-
-Please see our [contributing guide](https://github.com/tldraw/tldraw/blob/main/CONTRIBUTING.md). Found a bug? Please [submit an issue](https://github.com/tldraw/tldraw/issues/new).
-
-## Community
-
-Have questions, comments or feedback? [Join our discord](https://discord.tldraw.com/?utm_source=github&utm_medium=readme&utm_campaign=sociallink). For the latest news and release notes, visit [tldraw.dev](https://tldraw.dev).
-
-## Contact
-
-Find us on Twitter/X at [@tldraw](https://twitter.com/tldraw).
+Upstream: [tldraw/tldraw-sync-cloudflare](https://github.com/tldraw/tldraw-sync-cloudflare)
